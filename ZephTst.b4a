@@ -1,0 +1,438 @@
+﻿Version=3.5
+IconFile=
+NumberOfModules=4
+Module1=ChatActivity
+ModuleVisible1=1
+Module2=MyUtils
+ModuleVisible2=1
+Module3=HdgLabel
+ModuleVisible3=1
+Module4=GrdLabel
+ModuleVisible4=1
+Package=canalrun.apps.zephtest
+DoNotOverwriteManifest=False
+ManifestCode='This code will be applied to the manifest file during compilation.~\n~'You do not need to modify it in most cases.~\n~'See this link for for more information: http://www.basic4ppc.com/forum/showthread.php?p=78136~\n~AddManifestText(~\n~<uses-sdk android:minSdkVersion="4"/>~\n~<supports-screens android:xlargeScreens="true"~\n~    android:largeScreens="true" ~\n~    android:normalScreens="true" ~\n~    android:smallScreens="true" ~\n~    android:anyDensity="true"/>)~\n~SetApplicationAttribute(android:icon, "@drawable/icon")~\n~SetApplicationAttribute(android:label, "$LABEL$")~\n~'End of default text.~\n~
+UserTypesHint=GrdLabel,HdgLabel,LineBuf,DataRec,lstPacketRec,PacketRec,NameAndMac
+NumberOfFiles=1
+File1=Tst.bal
+NumberOfLibraries=3
+Library1=core
+Library2=randomaccessfile
+Library3=serial
+@EndOfDesignText@
+#Region Module Attributes
+  #FullScreen: True
+  #IncludeTitle: False
+  #ApplicationLabel: Zeph Test
+  #VersionCode: 1
+  #VersionName: 
+  #SupportedOrientations: portrait
+  #CanInstallToExternalStorage: False
+#End Region
+
+'Activity module
+Sub Process_Globals
+  Dim BtAdm As BluetoothAdmin
+  Dim Ser1 As Serial
+  Dim AStream As AsyncStreams
+
+  Dim fndDevs As List
+  
+  Type NameAndMac (Name As String, Mac As String)
+  Dim conDevs As NameAndMac
+
+  Type PacketRec (vld As Boolean, npk, fwid, fwv(2), hwid, hwv(2), chg, Hr, hbn, hbt(15), dst, spd, std As Int, tstd As Long)
+  ' vld-valid/empty, npk-packet num, fwid-firmware id, hwid-hardware id,
+  ' chg-battery charge, hr-heart rate, hbn-heart beat num, hbt(15)-heart beat time 1-15,
+  ' dst-distance, spd-speed, std-strides, fwv(2)-firmware version, hwv(2)-hardware version, tstd-total strides
+  Dim Packet As PacketRec
+	
+  Type lstPacketRec (hbn, std As Int)
+  Dim lstPacket As lstPacketRec
+  
+  Type DataRec (ste, n, dlc, crc As Int, data(150) As Byte)
+  ' ste-state (see below), n-next data pos, data-serial input (binary)
+  Dim DataIn As DataRec
+  
+  Dim tmrPacket As Timer
+  tmrPacket.Initialize("tmrPacket", 250)
+End Sub
+
+Sub Globals
+  Dim pnlMain, pnlInd, pIndC, pIndR As Panel
+  Dim btnSrcDevs As Button
+  Dim hlChg, hlDst, hlFw, hlHbn, hlHr, hlHw, hlNpk, hlSpd, hlStd As HdgLabel
+  Dim glHBT As GrdLabel
+  Dim pnlDisp As Panel
+  Dim lblDisp As Label
+  
+  Dim clrGray As Int = Colors.ARGB(255, 140, 140, 140)
+  Dim clrLime As Int = Colors.ARGB(255, 0, 255, 0)
+  Dim clrWSmk As Int = Colors.ARGB(255, 248, 248, 255)
+End Sub
+
+Sub Activity_Create(FirstTime As Boolean)
+  Dim j, k As Int
+  
+  If (FirstTime = True) Then
+    BtAdm.Initialize("BtAdm")
+    Ser1.Initialize("Ser1")
+  End If
+  
+  Log("Ser1.isInit: " & Ser1.IsInitialized)
+  Log("Ser1.isEnab: " & Ser1.IsEnabled)
+  
+  Activity.LoadLayout("Tst")
+  
+  pnlMain.SetLayout(0, 0, 100%x, 100%y)
+  
+  pnlInd.SetLayout(10dip, 10dip, pnlInd.Width, pnlInd.Height)
+  
+  pIndC.Color = clrGray
+  pIndR.Color = clrGray
+  
+  btnSrcDevs.SetLayout(pnlMain.Width - btnSrcDevs.Width - 10dip, pnlInd.Top, btnSrcDevs.Width, btnSrcDevs.Height)
+  
+  j = pnlInd.Top + pnlInd.Height + 10dip
+  k = pnlMain.Height - j
+  
+  pnlDisp.SetLayout(10dip, j, pnlMain.Width - 20dip, k * 0.6)
+  
+  glHBT.pnl.SetLayout(10dip, 100dip, pnlDisp.Width - 20dip, 2 * hlNpk.pnl.Height)
+  glHBT.pnl.Top = pnlDisp.Height - glHBT.pnl.Height - 10dip
+  
+  j = (pnlDisp.Width - (3 * hlNpk.pnl.Width)) / 4
+  k = (glHBT.pnl.Top - (3 * hlNpk.pnl.Height)) / 4
+  
+  hlNpk.pnl.SetLayout(j, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlFw.pnl.SetLayout(hlNpk.pnl.Left + hlNpk.pnl.Width + j, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlHw.pnl.SetLayout(hlFw.pnl.Left + hlFw.pnl.Width + j, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  
+  k = (glHBT.pnl.Top - (3 * hlNpk.pnl.Height)) / 4 + (hlNpk.pnl.top + hlNpk.pnl.Height)
+  
+  hlChg.pnl.SetLayout(hlNpk.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlSpd.pnl.SetLayout(hlFw.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlDst.pnl.SetLayout(hlHw.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  
+  k = (glHBT.pnl.Top - (3 * hlNpk.pnl.Height)) / 4 + (hlChg.pnl.top + hlChg.pnl.Height)
+  
+  hlHr.pnl.SetLayout(hlNpk.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlStd.pnl.SetLayout(hlFw.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  hlHbn.pnl.SetLayout(hlHw.pnl.Left, k, hlNpk.pnl.Width, hlNpk.pnl.Height)
+  
+  j = pnlDisp.Top + pnlDisp.Height + 10dip
+  k = pnlMain.Height - j
+  
+  For Each hl As  HdgLabel In Array As HdgLabel(hlChg, hlDst, hlFw, hlHbn, hlHr, hlHw, hlNpk, hlSpd, hlStd)
+    hl.val.Text = "0"
+  Next
+  
+  lblDisp.SetLayout(10dip, j , pnlMain.Width - 20dip, k - 10dip)
+  lblDisp.Color = Colors.White
+  lblDisp.Text = ""
+
+  glHBT.pnl.Color = Colors.DarkGray
+  glHBT.SetLabelPos
+
+  Dim lb As Label
+  
+  For i=0 To 15-1
+    lb = glHBT.lblst.Get(i)
+    lb.Color = clrWSmk
+    lb.Text = "00000"
+  Next
+End Sub
+
+Sub Activity_Resume
+  btnSrcDevs.Enabled = False
+  
+  If (BtAdm.IsEnabled = False) Then
+    If (BtAdm.Enable = False) Then 
+      lblDispAdd("Error enabling Bluetooth adapter.")
+    Else
+      lblDispAdd("Enabling Bluetooth adapter...")
+      'the StateChanged event will be soon raised
+    End If
+  Else
+    BtAdm_StateChanged(BtAdm.STATE_ON, 0)
+  End If
+End Sub
+
+Sub Activity_Pause (UserClosed As Boolean)
+  If (UserClosed = True) Then
+    AStream.Close
+    Ser1.Disconnect
+  End If
+
+  tmrPacket.Enabled = False
+End Sub
+
+Sub BtAdm_StateChanged (NewState As Int, OldState As Int)
+  btnSrcDevs.Enabled = (NewState = BtAdm.STATE_ON)
+End Sub
+
+Sub btnSrcDevs_Click
+  fndDevs.Initialize
+  
+  If (BtAdm.StartDiscovery = False) Then 
+    lblDispAdd("Error starting discovery process.")
+  Else
+    lblDispAdd("Starting discovery process.")
+    ProgressDialogShow("Searching for devices...")
+  End If
+End Sub
+
+Sub BtAdm_DeviceFound (Name As String, MacAddress As String)
+  Dim nm As NameAndMac
+
+  Log(Name & ":" & MacAddress)
+  
+  nm.Name = Name
+  nm.Mac = MacAddress
+  fndDevs.Add(nm)
+  
+  If (Name.StartsWith("HXM") = True) Then BtAdm.CancelDiscovery
+  
+  ProgressDialogShow("Searching for devices (~ device found)...".Replace("~", fndDevs.Size))
+End Sub
+
+Sub BtAdm_DiscoveryFinished
+  ProgressDialogHide
+  
+  If (fndDevs.Size = 0) Then
+    lblDispAdd("No devices found.")
+  Else
+    Dim lst As List
+    
+    lst.Initialize
+    
+    For i = 0 To fndDevs.Size - 1
+      Dim nm As NameAndMac
+      nm = fndDevs.Get(i)
+      lst.Add(nm.Name)
+    Next
+    
+    Dim res As Int
+    
+    res = InputList(lst, "Choose device to connect", -1)
+    
+    If (res <> DialogResponse.CANCEL) Then
+      conDevs = fndDevs.Get(res)
+      ProgressDialogShow("Trying to connect to: " & conDevs.Name & " (" & conDevs.Mac & ")")
+      Ser1.Connect(conDevs.Mac)
+    End If
+  End If
+End Sub
+
+Sub Ser1_Connected (Success As Boolean)
+  ProgressDialogHide
+  
+  lblDispAdd("connected: " & Success)
+  
+  If (Success = False) Then
+    lblDispAdd("Error connecting: " & LastException.Message)
+    pIndC.Color = clrGray
+  Else
+    pIndC.Color = clrLime
+    btnSrcDevs.Enabled = False
+
+    Packet.Initialize
+	Packet.vld = False
+	Packet.npk = 0
+	
+	lstPacket.Initialize
+	DataIn.Initialize
+	
+    If (AStream.IsInitialized = False) Then
+      AStream.Initialize(Ser1.InputStream, Null, "AStream")
+    End If
+  End If
+End Sub
+
+' Packet Sync States
+' 0 - search for stx
+' 1 - got stx, byte should be msg id (0x26)
+' 2 - got  msg id, byte is dlc, set ctr to dlc
+' 3 - counting dlc bytes, at 0 next state
+' 4 - byte should be crc
+' 5 - got data, byte should be etx
+'     test crc, valid record, xfer to Packetr, clr queue, set state 0
+' ELSE clr queue, set state 0
+
+Sub AStream_NewData (buf() As Byte)
+  Dim n, crc As Int
+  
+  ' LogMessage("AStream_NewData", BytesToString(Buffer, 0, Buffer.Length, "UTF8"))
+  
+  n = 0
+  Log("buf.length=" & buf.Length)
+  
+  Do While (n < buf.Length)
+    Select (DataIn.ste)
+      Case 0 ' search for stx
+	    If (buf(n) = 0x02) Then DataIn.ste = 1
+        n = n + 1
+		
+      Case 1 ' msg id (0x26)
+	    If (buf(n) = 0x26) Then DataIn.ste = 2 Else DataIn.ste = 0
+        n = n + 1
+		
+      Case 2 ' byte is dlc, set ctr to dlc, init pos
+	    If (buf(n) = 55) Then ' length of 0x26 rec
+		  DataIn.dlc = UnsignedByte(buf(n))
+		  DataIn.crc = 0
+		  DataIn.n = 0
+		  DataIn.ste = 3
+          n = n + 1
+		Else
+		  DataIn.ste = 0 ' note: don't consume buf(n)
+		End If
+		
+      Case 3 ' counting dlc bytes
+	    DataIn.data(DataIn.n) = buf(n)
+		DataIn.crc = DoCrc8(buf(n), DataIn.crc)
+		DataIn.n = DataIn.n + 1
+		
+		If (DataIn.n = DataIn.dlc) Then DataIn.ste = 4
+		n = n + 1
+		
+      Case 4 ' byte should be crc, test
+	    crc = UnsignedByte(buf(n))
+		If (crc = DataIn.crc) Then DataIn.ste = 5 Else DataIn.ste = 0
+		n = n + 1
+	  
+      Case 5 ' byte should be etx
+	    ' packet data fields (index-field)
+		' 0w-fw id, 2b-fw ver0, 3b-fw ver1, 4w-hw id, 6b-hw ver0, 7b-hw ver1,
+		' 8b-chg, 9b-hr, 10b-hbn, 11..39w-hbt 1-15, 47w-dst, 49w-spd, 51b-std
+
+		If ((buf(n) = 0x03) AND (Packet.vld = False)) Then ' test crc, packet available
+          Packet.fwid = UnsignedWord(DataIn.data(1), DataIn.data(0))
+          Packet.fwv(0) = UnsignedByte(DataIn.data(2))
+          Packet.fwv(1) = UnsignedByte(DataIn.data(3))
+
+		  Packet.hwid = UnsignedWord(DataIn.data(5), DataIn.data(4))
+          Packet.hwv(0) = UnsignedByte(DataIn.data(6))
+          Packet.hwv(1) = UnsignedByte(DataIn.data(7))
+
+          Packet.chg = UnsignedByte(DataIn.data(8))
+          Packet.Hr = UnsignedByte(DataIn.data(9))
+
+          lstPacket.hbn = Packet.hbn
+          Packet.hbn = UnsignedByte(DataIn.data(10))
+
+		  For i=0 To 15-1
+            Packet.hbt(i) = UnsignedWord(DataIn.data(2*i+12), DataIn.data(2*i+11))
+          Next
+
+          Packet.dst = UnsignedWord(DataIn.data(48), DataIn.data(47))
+          Packet.spd = UnsignedWord(DataIn.data(50), DataIn.data(49))
+
+          lstPacket.std = Packet.std
+          Packet.std = UnsignedByte(DataIn.data(51))
+
+          Packet.npk = Packet.npk + 1
+          Packet.vld = True
+		End If
+		
+		DataIn.ste = 0
+		DispPacket
+		
+		pIndR.Color = clrLime
+        tmrPacket.Enabled = True
+    End Select
+  Loop
+End Sub
+
+Sub AStream_Terminated
+  AStream_Error
+End Sub
+
+Sub AStream_Error
+  lblDispAdd("Connection is broken.")
+  pIndC.Color = clrGray
+  pIndR.Color = clrGray
+End Sub
+
+Sub tmrPacket_Tick
+  pIndR.Color = clrGray
+  tmrPacket.Enabled = False
+End Sub
+
+Sub DispPacket
+  If (Packet.vld = True) Then
+	hlNpk.val.Text = MyUtils.Sprintf("%s", Array As String(Packet.npk))
+
+	hlFw.val.Text = MyUtils.Sprintf("%s %s%s ", Array As String(Packet.fwid, Chr(Packet.fwv(0)), Chr(Packet.fwv(1))))
+	hlHw.val.Text = MyUtils.Sprintf("%s %s%s ", Array As String(Packet.hwid, Chr(Packet.hwv(0)), Chr(Packet.hwv(1))))
+	
+	hlChg.val.Text = MyUtils.Sprintf("%s", Array As String(Packet.chg))
+	hlHr.val.Text = MyUtils.Sprintf("%s", Array As String(Packet.Hr))
+	
+	hlHbn.val.Text = MyUtils.Sprintf("%s/%s", Array As String(Packet.hbn, RollOverDiff(Packet.hbn, lstPacket.hbn, 256)))
+	lstPacket.hbn = Packet.hbn
+	
+	hlDst.val.Text = MyUtils.Sprintf("%s", Array As String(Packet.dst))
+	hlSpd.val.Text = MyUtils.Sprintf("%s", Array As String(Packet.spd))
+	
+	Packet.tstd = Packet.tstd + RollOverDiff(Packet.std, lstPacket.std, 256)
+	hlStd.val.Text = MyUtils.Sprintf("%s/%s", Array As String(Packet.std, Packet.tstd))
+	lstPacket.std = Packet.std
+	  
+    Dim lb As Label
+	
+    For i=0 To 15-1
+	  lb = glHBT.lblst.Get(i)
+	  lb.Text = HbtInt(i)
+	Next
+
+	Packet.vld = False
+  End If
+End Sub
+
+Sub HbtInt(i As Int) As String
+  Return(NumberFormat2(Packet.hbt(i), 5, 0, 0, False))
+End Sub
+
+Sub lblDispAdd(s As String)
+  If (lblDisp.Text <> "") Then lblDisp.Text = lblDisp.Text & CRLF
+  
+  lblDisp.Text = lblDisp.Text & s
+End Sub
+
+Sub DoCrc8(b As Byte, crc8 As Int) As Int
+  Dim j, k, x, fix As Int
+   
+  x = Bit.AND(b, 0xff)
+
+  For k = 0 To 7
+    j = Bit.AND(1, Bit.Xor(x, crc8))
+	
+    fix = crc8 / 2
+    crc8 = Bit.AND(fix, 0xff)
+
+    fix = x / 2
+    x = Bit.AND(fix, 0xff)
+
+    If (j <> 0) Then crc8 = Bit.Xor(crc8, 0x8c)
+   Next
+   
+   Return(crc8)
+End Sub
+
+Sub UnsignedByte(b0 As Byte) As Int
+  Return(Bit.AND(b0, 0xff))
+End Sub
+
+Sub UnsignedWord(b1 As Byte, b0 As Byte) As Int
+  Return(256 * Bit.AND(b1, 0xff) + Bit.AND(b0, 0xff))
+End Sub
+
+' 
+Sub RollOverDiff(newV As Int, lstV As Int, mv As Int) As Int
+  If (newV >= lstV) Then
+    Return(newV - lstV)
+  Else
+    Return((mv - lstV) + newV)  
+  End If
+End Sub
