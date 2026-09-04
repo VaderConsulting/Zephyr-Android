@@ -21,6 +21,10 @@ B4A (Basic4Android) test app that talks to a Zephyr Bluetooth heart-rate / fitne
 
 Open `ZephTst.b4a` in the B4A IDE.
 
+## Requirements
+
+- B4A (Basic4Android) 3.5
+
 ## Attribution and provenance
 
 Imported from `B4A-Projects.zip` (folder `Zephyr Android`). No keystores were included. Package `canalrun.apps.zephtest` / application label Zeph Test. Dave Robinson / VaderConsulting historical working copy.
