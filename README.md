@@ -27,8 +27,8 @@ Open `ZephTst.b4a` in the B4A IDE.
 
 ## Attribution and provenance
 
-Imported from `B4A-Projects.zip` (folder `Zephyr Android`). No keystores were included. Package `canalrun.apps.zephtest` / application label Zeph Test. Dave Robinson / VaderConsulting historical working copy.
+Working copy from my Historical Dev folder `B4A/Zephyr Android`. Imported from `B4A-Projects.zip` (folder `Zephyr Android`). No keystores were included. Package `canalrun.apps.zephtest` / application label Zeph Test.
 
 ## License
 
-MIT © 2026 VaderConsulting for Dave's code. See `LICENSE`.
+MIT © 2026 VaderConsulting for Dave Robinson's code. See `LICENSE`.
